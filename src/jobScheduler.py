@@ -284,61 +284,6 @@ class job_scheduler:
         elif self.schduler_type == "annealing":
             self.schedule_annealing()
     
-    def schedule(self):
-        """
-        Default scheduling strategy.
-        
-        Sort jobs by circuit characteristics and schedule them one by one.
-        """
-        # Sort jobs by interaction density (gates per qubit-depth product)
-        self.job_queue.sort(
-            key=lambda x: (x.circuit.n_2qb_gates() / (x.circuit.depth() * x.circuit.n_qubits)), 
-            reverse=True
-        )
-        
-        print([(job.name, job.circuit.depth()) for job in self.job_queue])
-        
-        while len(self.job_queue) > 0:
-            available_qubits = self.qcloud.get_available_qubits()
-            
-            # Check if all jobs need more qubits than available
-            all_none = all([job.circuit.n_qubits > available_qubits for job in self.job_queue])
-            if all_none:
-                self.regiester_unscheduled_job()
-                break
-                
-            job = self.job_queue[0]
-            if job.circuit.n_qubits > available_qubits:
-                self.unscheduled_job.append(self.job_queue.pop(0))
-                print("no qpu available")
-                continue
-                
-            possible_placements = self.find_simple_placement(job)
-            if not possible_placements:
-                self.unscheduled_job.append(self.job_queue.pop(0))
-                continue
-            
-            best_placement = self.score(possible_placements)
-            print("find_placement")
-            
-            current_time = self.des.current_time
-            best_placement.start_time = current_time
-            self._schedule_new(best_placement, job, "BFS")
-            
-            self.scheduled_job.append(job)
-            self.job_queue.pop(0)
-            
-            count = Counter(best_placement.partition)
-            used_qpu_qubits = {value: count[key] for key, value in best_placement.qpu_mapping[0].items()}
-            print("jobs are scheduled")
-            
-        all_available_qubits = self.qcloud.get_available_qubits()
-        available_qubits = {qpu.qpuid: qpu.available_qubits for qpu in self.qcloud.qpus}
-        
-        # Start flow scheduling
-        flow_scheduler = flow_scheduler_1(self.des, self.qcloud, epr_p=0.3, name="BFS")
-        flow_scheduler.run()
-        return
 
     def schedule_bfs(self):
         """
